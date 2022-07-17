@@ -5,6 +5,8 @@ import (
 	"log"
 	"os"
 
+	"kseniadumpling/meme-slack-bot/utils"
+
 	"github.com/joho/godotenv"
 	"github.com/slack-go/slack"
 	"github.com/slack-go/slack/slackevents"
@@ -37,6 +39,7 @@ func main() {
 	defer cancel()
 
 	go func(ctx context.Context, client *slack.Client, socketClient *socketmode.Client) {
+		// main loop
 		for {
 			select {
 			case <-ctx.Done():
@@ -44,7 +47,9 @@ func main() {
 				return
 
 			case event := <-socketClient.Events:
+				// switching over event types that the process get: 
 				switch event.Type {
+
 				case socketmode.EventTypeConnecting:
 					log.Println("Connecting to Slack with Socket Mode...")
 
@@ -56,12 +61,23 @@ func main() {
 
 				case socketmode.EventTypeEventsAPI:
 					eventsAPIEvent, ok := event.Data.(slackevents.EventsAPIEvent)
+
 					if !ok {
 						log.Printf("Could not type cast the event to the EventsAPIEvent: %v\n", event)
 						continue
 					}
+					
+					// Send the acknowledge to the Slack server
 					socketClient.Ack(*event.Request)
-					log.Println(eventsAPIEvent)
+					
+					err := utils.HandleEventMessage(eventsAPIEvent, client)
+					if err != nil {
+						// TODO: error handling
+						log.Fatal(err)
+					}
+
+				default:
+					log.Printf("Unhandeled event type received: %s\n", event.Type)
 				}
 			}
 		}
